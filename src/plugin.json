@@ -14,8 +14,8 @@
     },
     "keywords": ["updown", "monitoring", "uptime", "api", "datasource"],
     "logos": {
-      "small": "logo.svg",
-      "large": "logo.svg"
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
     },
     "links": [
       {
