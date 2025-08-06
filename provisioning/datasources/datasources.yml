@@ -11,4 +11,6 @@ datasources:
     jsonData:
       apiUrl: 'https://updown.io/api'
     secureJsonData:
-      apiKey: 'test-api-key'
+      # Note: This is a placeholder for E2E tests
+      # Real API key would be configured during actual usage
+      apiKey: ''
