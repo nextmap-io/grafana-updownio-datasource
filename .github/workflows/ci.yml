@@ -45,9 +45,6 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-      - name: Validate plugin with Grafana validator
-        run: npx @grafana/plugin-validator .
-
       - name: Check for backend
         id: check-for-backend
         run: |
@@ -109,6 +106,11 @@ jobs:
         env:
           ARCHIVE: ${{ steps.metadata.outputs.archive }}
           PLUGIN_ID: ${{ steps.metadata.outputs.plugin-id }}
+
+      - name: Validate plugin with Grafana validator
+        run: npx @grafana/plugin-validator@latest ${ARCHIVE}
+        env:
+          ARCHIVE: ${{ steps.metadata.outputs.archive }}
 
       - name: Check plugin.json
         run: |
