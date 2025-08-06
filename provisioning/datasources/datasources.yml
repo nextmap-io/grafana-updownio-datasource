@@ -9,6 +9,6 @@ datasources:
     version: 1
     editable: true
     jsonData:
-      path: '/resources'
+      apiUrl: 'https://updown.io/api'
     secureJsonData:
-      apiKey: 'api-key'
+      apiKey: 'test-api-key'

@@ -49,7 +49,7 @@ export function ConfigEditor(props: Props) {
         label="API URL" 
         labelWidth={14} 
         interactive 
-        tooltip={'URL de base de l\'API UpDown.io (optionnel, par défaut: https://updown.io/api)'}
+        tooltip={'Base URL for the UpDown.io API (optional, default: https://updown.io/api)'}
       >
         <Input
           id="config-editor-api-url"
@@ -60,17 +60,17 @@ export function ConfigEditor(props: Props) {
         />
       </InlineField>
       <InlineField 
-        label="Clé API" 
+        label="API Key" 
         labelWidth={14} 
         interactive 
-        tooltip={'Votre clé API UpDown.io (disponible dans votre compte UpDown.io)'}
+        tooltip={'Your UpDown.io API key (available in your UpDown.io account)'}
       >
         <SecretInput
           required
           id="config-editor-api-key"
           isConfigured={secureJsonFields.apiKey}
           value={secureJsonData?.apiKey}
-          placeholder="Entrez votre clé API UpDown.io"
+          placeholder="Enter your UpDown.io API key"
           width={40}
           onReset={onResetAPIKey}
           onChange={onAPIKeyChange}
