@@ -37,6 +37,8 @@
     "validate-local": "npm run package && npx @grafana/plugin-validator@latest grafana-updownio-datasource.zip",
     "package": "npm run build:all && rm -rf tmp grafana-updownio-datasource.zip && mkdir -p tmp/updown-updownio-datasource && cp dist/*.json dist/*.md dist/LICENSE dist/module.js dist/go_plugin_build_manifest dist/gpx_updown_io_datasource_* tmp/updown-updownio-datasource/ && if [ -f dist/img/logo.svg ]; then cp dist/img/logo.svg tmp/updown-updownio-datasource/; fi && cd tmp && zip -r ../grafana-updownio-datasource.zip updown-updownio-datasource/ -x '*.map' && cd .. && rm -rf tmp",
     "build:all": "npm run build && ~/go/bin/mage buildAll",
+    "build:test": "npm run typecheck && npm run lint && npm run build && go build -o dist/gpx_updown_io_datasource_$(go env GOOS)_$(go env GOARCH) ./pkg",
+    "build:dev": "npm run build && go build -o dist/gpx_updown_io_datasource_$(go env GOOS)_$(go env GOARCH) ./pkg",
     "test:all": "npm run typecheck && npm run lint && npm run test:ci && npm run build:all && npm run validate",
     "e2e": "playwright test",
     "server": "docker compose up --build",
