@@ -126,33 +126,232 @@ func (d *Datasource) queryChecks(ctx context.Context, query backend.DataQuery) b
 		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("failed to fetch checks: %v", err))
 	}
 
-	// Create a frame with check information
+	// Create a frame with comprehensive check information
 	frame := data.NewFrame("checks")
 
-	// Add fields
-	tokens := make([]string, len(checks))
-	urls := make([]string, len(checks))
-	aliases := make([]string, len(checks))
-	uptimes := make([]float64, len(checks))
-	statuses := make([]bool, len(checks))
+	// Préparer tous les champs avec les bonnes tailles
+	numChecks := len(checks)
+	
+	// Champs de base
+	tokens := make([]string, numChecks)
+	urls := make([]string, numChecks)
+	aliases := make([]string, numChecks)
+	types := make([]string, numChecks)
+	uptimes := make([]float64, numChecks)
+	statuses := make([]bool, numChecks)
+	lastStatuses := make([]int, numChecks)
+	
+	// Champs temporels
+	downSinces := make([]*time.Time, numChecks)
+	upSinces := make([]*time.Time, numChecks)
+	lastCheckAts := make([]*time.Time, numChecks)
+	nextCheckAts := make([]*time.Time, numChecks)
+	createdAts := make([]*time.Time, numChecks)
+	muteUntils := make([]*time.Time, numChecks)
+	
+	// Champs de configuration
+	periods := make([]int, numChecks)
+	apdexTs := make([]float64, numChecks)
+	stringMatches := make([]string, numChecks)
+	enableds := make([]bool, numChecks)
+	publisheds := make([]bool, numChecks)
+	httpVerbs := make([]string, numChecks)
+	httpBodies := make([]string, numChecks)
+	
+	// Champs SSL
+	sslValids := make([]*bool, numChecks)
+	sslExpiresAts := make([]*time.Time, numChecks)
+	sslTestedAts := make([]*time.Time, numChecks)
+	
+	// Champs de diagnostic
+	errors := make([]*string, numChecks)
+	faviconUrls := make([]*string, numChecks)
+	recipientCounts := make([]int, numChecks)
+	disabledLocationCounts := make([]int, numChecks)
+	customHeaderCounts := make([]int, numChecks)
 
 	for i, check := range checks {
+		// Champs de base
 		tokens[i] = check.Token
 		urls[i] = check.URL
 		aliases[i] = check.Alias
+		types[i] = check.Type
 		uptimes[i] = check.Uptime
 		statuses[i] = !check.Down
+		lastStatuses[i] = check.LastStatus
+		
+		// Champs de configuration
+		periods[i] = check.Period
+		apdexTs[i] = check.ApdexT
+		stringMatches[i] = check.StringMatch
+		enableds[i] = check.Enabled
+		publisheds[i] = check.Published
+		httpVerbs[i] = check.HTTPVerb
+		httpBodies[i] = check.HTTPBody
+		
+		// Champs optionnels avec gestion des pointeurs
+		errors[i] = check.Error
+		faviconUrls[i] = check.FaviconURL
+		
+		// Comptes
+		recipientCounts[i] = len(check.Recipients)
+		disabledLocationCounts[i] = len(check.DisabledLocations)
+		customHeaderCounts[i] = len(check.CustomHeaders)
+		
+		// Parse des dates avec gestion d'erreur
+		if check.DownSince != nil && *check.DownSince != "" {
+			if parsed, parseErr := time.Parse(time.RFC3339, *check.DownSince); parseErr == nil {
+				downSinces[i] = &parsed
+			}
+		}
+		
+		if check.UpSince != nil && *check.UpSince != "" {
+			if parsed, parseErr := time.Parse(time.RFC3339, *check.UpSince); parseErr == nil {
+				upSinces[i] = &parsed
+			}
+		}
+		
+		if parsed, parseErr := time.Parse(time.RFC3339, check.LastCheckAt); parseErr == nil {
+			lastCheckAts[i] = &parsed
+		}
+		
+		if parsed, parseErr := time.Parse(time.RFC3339, check.NextCheckAt); parseErr == nil {
+			nextCheckAts[i] = &parsed
+		}
+		
+		if parsed, parseErr := time.Parse(time.RFC3339, check.CreatedAt); parseErr == nil {
+			createdAts[i] = &parsed
+		}
+		
+		if check.MuteUntil != nil && *check.MuteUntil != "" {
+			if parsed, parseErr := time.Parse(time.RFC3339, *check.MuteUntil); parseErr == nil {
+				muteUntils[i] = &parsed
+			}
+		}
+		
+		// Informations SSL
+		if check.SSL != nil {
+			sslValids[i] = &check.SSL.Valid
+			
+			if parsed, parseErr := time.Parse(time.RFC3339, check.SSL.ExpiresAt); parseErr == nil {
+				sslExpiresAts[i] = &parsed
+			}
+			
+			if parsed, parseErr := time.Parse(time.RFC3339, check.SSL.TestedAt); parseErr == nil {
+				sslTestedAts[i] = &parsed
+			}
+		}
 	}
 
+	// Ajouter tous les champs à la frame
 	frame.Fields = append(frame.Fields,
+		// Identification
 		data.NewField("token", nil, tokens),
 		data.NewField("url", nil, urls),
 		data.NewField("alias", nil, aliases),
+		data.NewField("type", nil, types),
+		
+		// Status et performance
 		data.NewField("uptime", nil, uptimes),
 		data.NewField("status", nil, statuses),
+		data.NewField("last_status", nil, lastStatuses),
+		data.NewField("apdex_t", nil, apdexTs),
+		
+		// Configuration
+		data.NewField("enabled", nil, enableds),
+		data.NewField("published", nil, publisheds),
+		data.NewField("period", nil, periods),
+		data.NewField("http_verb", nil, httpVerbs),
+		data.NewField("string_match", nil, stringMatches),
+		
+		// Dates importantes
+		data.NewField("created_at", nil, createdAts),
+		data.NewField("last_check_at", nil, lastCheckAts),
+		data.NewField("next_check_at", nil, nextCheckAts),
+		data.NewField("up_since", nil, upSinces),
+		data.NewField("down_since", nil, downSinces),
+		data.NewField("mute_until", nil, muteUntils),
+		
+		// SSL
+		data.NewField("ssl_valid", nil, sslValids),
+		data.NewField("ssl_expires_at", nil, sslExpiresAts),
+		data.NewField("ssl_tested_at", nil, sslTestedAts),
+		
+		// Diagnostic et comptes
+		data.NewField("error", nil, errors),
+		data.NewField("favicon_url", nil, faviconUrls),
+		data.NewField("recipient_count", nil, recipientCounts),
+		data.NewField("disabled_location_count", nil, disabledLocationCounts),
+		data.NewField("custom_header_count", nil, customHeaderCounts),
 	)
 
-	return backend.DataResponse{Frames: []*data.Frame{frame}}
+	// Créons une frame supplémentaire avec des statistiques agrégées
+	summaryFrame := data.NewFrame("checks_summary")
+	
+	// Calculons des statistiques utiles
+	totalChecks := len(checks)
+	activeChecks := 0
+	downChecks := 0
+	enabledChecks := 0
+	publishedChecks := 0
+	sslChecks := 0
+	sslValidChecks := 0
+	avgUptime := 0.0
+	
+	for _, check := range checks {
+		if !check.Down {
+			activeChecks++
+		} else {
+			downChecks++
+		}
+		if check.Enabled {
+			enabledChecks++
+		}
+		if check.Published {
+			publishedChecks++
+		}
+		if check.SSL != nil {
+			sslChecks++
+			if check.SSL.Valid {
+				sslValidChecks++
+			}
+		}
+		avgUptime += check.Uptime
+	}
+	
+	if totalChecks > 0 {
+		avgUptime = avgUptime / float64(totalChecks)
+	}
+	
+	// Créons les données pour la frame de résumé
+	summaryLabels := []string{
+		"total_checks",
+		"active_checks", 
+		"down_checks",
+		"enabled_checks",
+		"published_checks",
+		"ssl_checks",
+		"ssl_valid_checks",
+		"average_uptime",
+	}
+	
+	summaryValues := []float64{
+		float64(totalChecks),
+		float64(activeChecks),
+		float64(downChecks),
+		float64(enabledChecks),
+		float64(publishedChecks),
+		float64(sslChecks),
+		float64(sslValidChecks),
+		avgUptime,
+	}
+	
+	summaryFrame.Fields = append(summaryFrame.Fields,
+		data.NewField("metric", nil, summaryLabels),
+		data.NewField("value", nil, summaryValues),
+	)
+
+	return backend.DataResponse{Frames: []*data.Frame{frame, summaryFrame}}
 }
 
 func (d *Datasource) queryMetrics(ctx context.Context, query backend.DataQuery, qm models.QueryModel) backend.DataResponse {
@@ -395,7 +594,7 @@ func (d *Datasource) queryDowntimes(ctx context.Context, query backend.DataQuery
 		return backend.ErrDataResponse(backend.StatusBadRequest, "check token is required for downtimes query")
 	}
 
-	downtimes, err := d.fetchDowntimes(ctx, qm.CheckToken)
+	downtimes, err := d.fetchDowntimesFiltered(ctx, qm.CheckToken, query.TimeRange.From, query.TimeRange.To)
 	if err != nil {
 		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("failed to fetch downtimes: %v", err))
 	}
@@ -407,6 +606,7 @@ func (d *Datasource) queryDowntimes(ctx context.Context, query backend.DataQuery
 		ids := make([]string, len(downtimes))
 		errors := make([]string, len(downtimes))
 		startedAts := make([]*time.Time, len(downtimes))
+		endedAts := make([]*time.Time, len(downtimes))
 		durations := make([]*int, len(downtimes))
 
 		for i, downtime := range downtimes {
@@ -430,6 +630,22 @@ func (d *Datasource) queryDowntimes(ctx context.Context, query backend.DataQuery
 				startedAts[i] = nil
 			}
 			
+			// Parse ended_at similarly
+			if downtime.EndedAt != nil && *downtime.EndedAt != "" {
+				if endedAt, parseErr := time.Parse(time.RFC3339, *downtime.EndedAt); parseErr == nil {
+					endedAts[i] = &endedAt
+				} else {
+					if endedAt, parseErr := time.Parse("2006-01-02T15:04:05Z07:00", *downtime.EndedAt); parseErr == nil {
+						endedAts[i] = &endedAt
+					} else {
+						log.DefaultLogger.Warn("Failed to parse downtime ended_at", "value", *downtime.EndedAt, "error", parseErr)
+						endedAts[i] = nil
+					}
+				}
+			} else {
+				endedAts[i] = nil
+			}
+			
 			durations[i] = downtime.Duration
 		}
 
@@ -437,6 +653,7 @@ func (d *Datasource) queryDowntimes(ctx context.Context, query backend.DataQuery
 			data.NewField("id", nil, ids),
 			data.NewField("error", nil, errors),
 			data.NewField("started_at", nil, startedAts),
+			data.NewField("ended_at", nil, endedAts),
 			data.NewField("duration", nil, durations),
 		)
 	}
@@ -544,13 +761,21 @@ func (d *Datasource) fetchMetrics(ctx context.Context, token string, from, to ti
 	}
 	
 	q := req.URL.Query()
-	// UpDown.io API attend des timestamps Unix
-	q.Add("from", fmt.Sprintf("%d", from.Unix()))
-	q.Add("to", fmt.Sprintf("%d", to.Unix()))
+	
+	// D'après la doc UpDown.io, l'API accepte ISO8601 format: 2011-10-05T22:26:12-04:00
+	// Utilisons le format avec timezone pour plus de précision
+	fromStr := from.Format("2006-01-02T15:04:05Z07:00")
+	toStr := to.Format("2006-01-02T15:04:05Z07:00")
+	
+	q.Add("from", fromStr)
+	q.Add("to", toStr)
 	if groupBy != "" {
 		q.Add("group", groupBy)
 	}
+	
 	req.URL.RawQuery = q.Encode()
+	
+	log.DefaultLogger.Debug("Fetching metrics", "url", req.URL.String(), "from", fromStr, "to", toStr)
 	
 	var metrics models.UpdownMetrics
 	err = d.makeAPIRequestWithRequest(req, &metrics)
@@ -559,10 +784,103 @@ func (d *Datasource) fetchMetrics(ctx context.Context, token string, from, to ti
 
 func (d *Datasource) fetchDowntimes(ctx context.Context, token string) ([]models.UpdownDowntime, error) {
 	url := fmt.Sprintf("%s/checks/%s/downtimes", d.settings.ApiUrl, token)
-	var downtimes []models.UpdownDowntime
 	
-	err := d.makeAPIRequest(ctx, "GET", url, nil, &downtimes)
+	// Pour récupérer tous les downtimes récents, on peut ajouter des paramètres
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Ajoutons un paramètre pour avoir plus de résultats récents
+	q := req.URL.Query()
+	q.Add("page", "1")
+	req.URL.RawQuery = q.Encode()
+	
+	log.DefaultLogger.Debug("Fetching downtimes", "url", req.URL.String())
+	
+	var downtimes []models.UpdownDowntime
+	err = d.makeAPIRequestWithRequest(req, &downtimes)
 	return downtimes, err
+}
+
+// fetchDowntimesFiltered récupère les downtimes avec pagination et filtrage temporel
+func (d *Datasource) fetchDowntimesFiltered(ctx context.Context, token string, from, to time.Time) ([]models.UpdownDowntime, error) {
+	var allDowntimes []models.UpdownDowntime
+	page := 1
+	maxPages := 10 // Limite de sécurité pour éviter les boucles infinies
+	
+	log.DefaultLogger.Debug("Fetching downtimes with time filter", "from", from.Format(time.RFC3339), "to", to.Format(time.RFC3339))
+	
+	for page <= maxPages {
+		url := fmt.Sprintf("%s/checks/%s/downtimes", d.settings.ApiUrl, token)
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			return nil, err
+		}
+		
+		q := req.URL.Query()
+		q.Add("page", fmt.Sprintf("%d", page))
+		req.URL.RawQuery = q.Encode()
+		
+		log.DefaultLogger.Debug("Fetching downtimes page", "page", page, "url", req.URL.String())
+		
+		var pageDowntimes []models.UpdownDowntime
+		err = d.makeAPIRequestWithRequest(req, &pageDowntimes)
+		if err != nil {
+			return nil, err
+		}
+		
+		// Si aucun downtime sur cette page, on arrête
+		if len(pageDowntimes) == 0 {
+			log.DefaultLogger.Debug("No more downtimes, stopping pagination", "page", page)
+			break
+		}
+		
+		// Filtrons et ajoutons les downtimes dans la période demandée
+		foundOlderThanRange := false
+		
+		for _, downtime := range pageDowntimes {
+			if downtime.StartedAt == "" {
+				continue
+			}
+			
+			// Parse la date de début
+			var startedAt time.Time
+			if parsedTime, parseErr := time.Parse(time.RFC3339, downtime.StartedAt); parseErr == nil {
+				startedAt = parsedTime
+			} else if parsedTime, parseErr := time.Parse("2006-01-02T15:04:05Z07:00", downtime.StartedAt); parseErr == nil {
+				startedAt = parsedTime
+			} else {
+				log.DefaultLogger.Warn("Failed to parse downtime date for filtering", "started_at", downtime.StartedAt)
+				continue
+			}
+			
+			// Vérifions si le downtime est dans la période demandée
+			if startedAt.After(to) {
+				// Downtime plus récent que la période demandée, on continue
+				continue
+			} else if startedAt.Before(from) {
+				// Downtime plus ancien que la période demandée
+				foundOlderThanRange = true
+				continue
+			} else {
+				// Downtime dans la période demandée
+				allDowntimes = append(allDowntimes, downtime)
+			}
+		}
+		
+		// Si on a trouvé des downtimes plus anciens que la période demandée,
+		// on peut arrêter la pagination (ils sont triés par date décroissante)
+		if foundOlderThanRange {
+			log.DefaultLogger.Debug("Found downtimes older than requested range, stopping pagination", "page", page)
+			break
+		}
+		
+		page++
+	}
+	
+	log.DefaultLogger.Debug("Filtered downtimes", "total", len(allDowntimes), "pages_fetched", page-1)
+	return allDowntimes, nil
 }
 
 func (d *Datasource) makeAPIRequest(ctx context.Context, method, url string, body io.Reader, result interface{}) error {

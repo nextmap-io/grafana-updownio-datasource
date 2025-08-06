@@ -69,7 +69,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     description: `${check.url} (${check.uptime}% uptime)`,
   }));
 
-  const needsCheckToken = queryType && ['metrics', 'downtimes', 'uptime'].includes(queryType);
+  const needsCheckToken = queryType && ['metrics', 'performance', 'downtimes', 'uptime'].includes(queryType);
   const needsGroupBy = queryType === 'metrics';
 
   return (

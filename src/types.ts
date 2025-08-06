@@ -2,7 +2,7 @@ import { DataSourceJsonData } from '@grafana/data';
 import { DataQuery } from '@grafana/schema';
 
 export interface UpdownQuery extends DataQuery {
-  // Query type: 'checks', 'metrics', 'downtimes', 'uptime'
+  // Query type: 'checks', 'metrics', 'performance', 'downtimes', 'uptime'
   queryType: string;
   // Check token for specific queries
   checkToken?: string;

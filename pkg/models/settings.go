@@ -59,10 +59,10 @@ type UpdownMetrics struct {
 	Uptime   *float64 `json:"uptime,omitempty"`
 	Apdex    *float64 `json:"apdex,omitempty"`
 	Requests *struct {
-		Samples             int `json:"samples"`
-		Failures            int `json:"failures"`
-		Satisfied           int `json:"satisfied"`
-		Tolerated           int `json:"tolerated"`
+		Samples             int            `json:"samples"`
+		Failures            int            `json:"failures"`
+		Satisfied           int            `json:"satisfied"`
+		Tolerated           int            `json:"tolerated"`
 		ByResponseTime      map[string]int `json:"by_response_time"`
 	} `json:"requests,omitempty"`
 	Timings *struct {
