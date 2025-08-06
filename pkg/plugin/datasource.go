@@ -150,7 +150,7 @@ func (d *Datasource) queryChecks(ctx context.Context, query backend.DataQuery) b
 	types := make([]string, numChecks)
 	uptimes := make([]float64, numChecks)
 	statuses := make([]bool, numChecks)
-	lastStatuses := make([]*int, numChecks)
+	lastStatuses := make([]float64, numChecks)
 	
 	// Champs de configuration - toujours présents
 	periods := make([]int, numChecks)
@@ -175,7 +175,7 @@ func (d *Datasource) queryChecks(ctx context.Context, query backend.DataQuery) b
 		types[i] = check.Type
 		uptimes[i] = check.Uptime
 		statuses[i] = !check.Down
-		lastStatuses[i] = &check.LastStatus
+		lastStatuses[i] = float64(check.LastStatus)
 		
 		// Champs de configuration
 		periods[i] = check.Period
@@ -517,7 +517,7 @@ func (d *Datasource) queryDowntimes(ctx context.Context, query backend.DataQuery
 		errors := make([]string, len(downtimes))
 		startedAts := make([]*time.Time, len(downtimes))
 		endedAts := make([]*time.Time, len(downtimes))
-		durations := make([]*int, len(downtimes))
+		durations := make([]float64, len(downtimes))
 
 		for i, downtime := range downtimes {
 			ids[i] = downtime.ID
@@ -556,7 +556,11 @@ func (d *Datasource) queryDowntimes(ctx context.Context, query backend.DataQuery
 				endedAts[i] = nil
 			}
 			
-			durations[i] = downtime.Duration
+			if downtime.Duration != nil {
+				durations[i] = float64(*downtime.Duration)
+			} else {
+				durations[i] = 0
+			}
 		}
 
 		frame.Fields = append(frame.Fields,
