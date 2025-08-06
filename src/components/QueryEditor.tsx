@@ -8,6 +8,7 @@ type Props = QueryEditorProps<DataSource, UpdownQuery, UpdownDataSourceOptions>;
 
 const queryTypeOptions: Array<SelectableValue<string>> = [
   { label: 'Service List', value: 'checks', description: 'Retrieve the list of all your monitored services' },
+  { label: 'Performance Overview', value: 'performance', description: 'Complete performance dashboard with uptime, response time and status' },
   { label: 'Service Metrics', value: 'metrics', description: 'Retrieve detailed metrics for a service' },
   { label: 'Downtime', value: 'downtimes', description: 'Retrieve downtime history for a service' },
   { label: 'Uptime', value: 'uptime', description: 'Retrieve uptime percentage for a service' },
