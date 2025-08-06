@@ -1,0 +1,46 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "datasource",
+  "name": "UpDown.io",
+  "id": "updown-updownio-datasource",
+  "metrics": true,
+  "backend": true,
+  "executable": "gpx_updown_io_datasource",
+  "info": {
+    "description": "UpDown.io datasource for Grafana - Monitor your services status and visualize availability metrics",
+    "author": {
+      "name": "nextmap-io",
+      "url": "https://github.com/nextmap-io"
+    },
+    "keywords": ["updown", "monitoring", "uptime", "api", "datasource"],
+    "logos": {
+      "small": "logo.svg",
+      "large": "logo.svg"
+    },
+    "links": [
+      {
+        "name": "UpDown.io API Documentation",
+        "url": "https://updown.io/api"
+      },
+      {
+        "name": "UpDown.io Website",
+        "url": "https://updown.io"
+      },
+      {
+        "name": "GitHub Repository",
+        "url": "https://github.com/nextmap-io/grafana-updownio-datasource"
+      },
+      {
+        "name": "Sponsor",
+        "url": "https://github.com/sponsors/alo-is"
+      }
+    ],
+    "screenshots": [],
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
+  },
+  "dependencies": {
+    "grafanaDependency": ">=10.4.0",
+    "plugins": []
+  }
+}
