@@ -509,9 +509,138 @@ func (d *Datasource) queryDowntimes(ctx context.Context, query backend.DataQuery
 		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("failed to fetch downtimes: %v", err))
 	}
 
-	// Create a frame with downtimes
-	frame := data.NewFrame("downtimes")
+	// Récupérons aussi les informations du check pour connaître l'état actuel
+	check, err := d.fetchCheck(ctx, qm.CheckToken)
+	if err != nil {
+		log.DefaultLogger.Warn("Failed to fetch check info for downtimes", "error", err)
+	}
 
+	// Créons une série temporelle pour Status History
+	// Générons des points de données à intervalles réguliers
+	duration := query.TimeRange.To.Sub(query.TimeRange.From)
+	
+	// Déterminons l'intervalle en fonction de la durée
+	var interval time.Duration
+	var numPoints int
+	
+	if duration <= time.Hour {
+		interval = time.Minute * 1 // 1 minute
+		numPoints = int(duration.Minutes())
+	} else if duration <= 24*time.Hour {
+		interval = time.Minute * 5 // 5 minutes
+		numPoints = int(duration.Minutes() / 5)
+	} else if duration <= 7*24*time.Hour {
+		interval = time.Hour * 1 // 1 heure
+		numPoints = int(duration.Hours())
+	} else {
+		interval = time.Hour * 6 // 6 heures
+		numPoints = int(duration.Hours() / 6)
+	}
+	
+	// Limitons le nombre de points pour éviter des graphiques trop lourds
+	if numPoints > 1000 {
+		numPoints = 1000
+		interval = duration / time.Duration(numPoints)
+	}
+	
+	log.DefaultLogger.Debug("Creating status history", "duration", duration.String(), "interval", interval.String(), "points", numPoints, "downtimes", len(downtimes))
+
+	// Frame principale : Status History
+	statusFrame := data.NewFrame("status_history")
+	
+	times := make([]time.Time, numPoints)
+	statuses := make([]float64, numPoints) // 1 = UP, 0 = DOWN
+	statusLabels := make([]string, numPoints) // "UP" ou "DOWN"
+	
+	// Initialisons tous les points comme UP (1.0)
+	for i := 0; i < numPoints; i++ {
+		times[i] = query.TimeRange.From.Add(time.Duration(i) * interval)
+		statuses[i] = 1.0 // UP par défaut
+		statusLabels[i] = "UP"
+	}
+	
+	// Appliquons les downtimes pour marquer les périodes DOWN
+	for _, downtime := range downtimes {
+		if downtime.StartedAt == "" {
+			continue
+		}
+		
+		// Parse la date de début
+		var startedAt time.Time
+		if parsedTime, parseErr := time.Parse(time.RFC3339, downtime.StartedAt); parseErr == nil {
+			startedAt = parsedTime
+		} else if parsedTime, parseErr := time.Parse("2006-01-02T15:04:05Z07:00", downtime.StartedAt); parseErr == nil {
+			startedAt = parsedTime
+		} else {
+			log.DefaultLogger.Warn("Failed to parse downtime started_at for status history", "value", downtime.StartedAt, "error", parseErr)
+			continue
+		}
+		
+		// Déterminons la fin du downtime
+		var endedAt time.Time
+		if downtime.EndedAt != nil && *downtime.EndedAt != "" {
+			if parsedTime, parseErr := time.Parse(time.RFC3339, *downtime.EndedAt); parseErr == nil {
+				endedAt = parsedTime
+			} else if parsedTime, parseErr := time.Parse("2006-01-02T15:04:05Z07:00", *downtime.EndedAt); parseErr == nil {
+				endedAt = parsedTime
+			} else {
+				log.DefaultLogger.Warn("Failed to parse downtime ended_at for status history", "value", *downtime.EndedAt, "error", parseErr)
+				// Si on ne peut pas parser ended_at, on estime avec la duration
+				if downtime.Duration != nil {
+					endedAt = startedAt.Add(time.Duration(*downtime.Duration) * time.Second)
+				} else {
+					// Si pas de duration non plus, on considère que c'est encore en cours
+					endedAt = query.TimeRange.To
+				}
+			}
+		} else {
+			// Downtime en cours : utilisons la duration si disponible
+			if downtime.Duration != nil {
+				endedAt = startedAt.Add(time.Duration(*downtime.Duration) * time.Second)
+			} else {
+				// Si pas de fin et pas de duration, on regarde l'état actuel du check
+				if check != nil && check.Down {
+					endedAt = query.TimeRange.To // Encore en panne
+				} else {
+					endedAt = startedAt.Add(time.Minute * 5) // Durée minimale estimée
+				}
+			}
+		}
+		
+		log.DefaultLogger.Debug("Processing downtime", "id", downtime.ID, "started", startedAt.Format(time.RFC3339), "ended", endedAt.Format(time.RFC3339))
+		
+		// Marquons tous les points dans cette période comme DOWN
+		for i := 0; i < numPoints; i++ {
+			pointTime := times[i]
+			if (pointTime.Equal(startedAt) || pointTime.After(startedAt)) && pointTime.Before(endedAt) {
+				statuses[i] = 0.0 // DOWN
+				statusLabels[i] = "DOWN"
+			}
+		}
+	}
+	
+	// Si le check est actuellement en panne, marquons la fin de la période
+	if check != nil && check.Down {
+		log.DefaultLogger.Debug("Check is currently down, marking recent period as DOWN")
+		// Marquons les derniers points comme DOWN si pas déjà fait
+		recentThreshold := query.TimeRange.To.Add(-interval * 5) // Les 5 derniers intervalles
+		for i := numPoints - 1; i >= 0 && times[i].After(recentThreshold); i-- {
+			if statuses[i] == 1.0 { // Si pas déjà marqué comme DOWN par un downtime
+				statuses[i] = 0.0
+				statusLabels[i] = "DOWN"
+			}
+		}
+	}
+	
+	statusFrame.Fields = append(statusFrame.Fields,
+		data.NewField("time", nil, times),
+		data.NewField("status", nil, statuses),
+		data.NewField("status_label", nil, statusLabels),
+	)
+	
+	// Frame secondaire : Détails des downtimes (pour référence)
+	detailsFrame := data.NewFrame("downtime_details")
+	
 	if len(downtimes) > 0 {
 		ids := make([]string, len(downtimes))
 		errors := make([]string, len(downtimes))
@@ -523,34 +652,26 @@ func (d *Datasource) queryDowntimes(ctx context.Context, query backend.DataQuery
 			ids[i] = downtime.ID
 			errors[i] = downtime.Error
 			
-			// Parse date safely
+			// Parse date safely (code existant)
 			if downtime.StartedAt != "" {
 				if startedAt, parseErr := time.Parse(time.RFC3339, downtime.StartedAt); parseErr == nil {
 					startedAts[i] = &startedAt
+				} else if startedAt, parseErr := time.Parse("2006-01-02T15:04:05Z07:00", downtime.StartedAt); parseErr == nil {
+					startedAts[i] = &startedAt
 				} else {
-					// Try alternative format
-					if startedAt, parseErr := time.Parse("2006-01-02T15:04:05Z07:00", downtime.StartedAt); parseErr == nil {
-						startedAts[i] = &startedAt
-					} else {
-						log.DefaultLogger.Warn("Failed to parse downtime started_at", "value", downtime.StartedAt, "error", parseErr)
-						startedAts[i] = nil
-					}
+					startedAts[i] = nil
 				}
 			} else {
 				startedAts[i] = nil
 			}
 			
-			// Parse ended_at similarly
 			if downtime.EndedAt != nil && *downtime.EndedAt != "" {
 				if endedAt, parseErr := time.Parse(time.RFC3339, *downtime.EndedAt); parseErr == nil {
 					endedAts[i] = &endedAt
+				} else if endedAt, parseErr := time.Parse("2006-01-02T15:04:05Z07:00", *downtime.EndedAt); parseErr == nil {
+					endedAts[i] = &endedAt
 				} else {
-					if endedAt, parseErr := time.Parse("2006-01-02T15:04:05Z07:00", *downtime.EndedAt); parseErr == nil {
-						endedAts[i] = &endedAt
-					} else {
-						log.DefaultLogger.Warn("Failed to parse downtime ended_at", "value", *downtime.EndedAt, "error", parseErr)
-						endedAts[i] = nil
-					}
+					endedAts[i] = nil
 				}
 			} else {
 				endedAts[i] = nil
@@ -563,7 +684,7 @@ func (d *Datasource) queryDowntimes(ctx context.Context, query backend.DataQuery
 			}
 		}
 
-		frame.Fields = append(frame.Fields,
+		detailsFrame.Fields = append(detailsFrame.Fields,
 			data.NewField("id", nil, ids),
 			data.NewField("error", nil, errors),
 			data.NewField("started_at", nil, startedAts),
@@ -572,7 +693,9 @@ func (d *Datasource) queryDowntimes(ctx context.Context, query backend.DataQuery
 		)
 	}
 
-	return backend.DataResponse{Frames: []*data.Frame{frame}}
+	log.DefaultLogger.Debug("Created status history frames", "status_points", numPoints, "downtime_details", len(downtimes))
+
+	return backend.DataResponse{Frames: []*data.Frame{statusFrame, detailsFrame}}
 }
 
 func (d *Datasource) queryUptime(ctx context.Context, query backend.DataQuery, qm models.QueryModel) backend.DataResponse {
