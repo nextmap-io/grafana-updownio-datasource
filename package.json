@@ -31,7 +31,7 @@
     "test": "jest --watch --onlyChanged",
     "test:ci": "jest --passWithNoTests --maxWorkers 4",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint --cache --ignore-path ./.gitignore --ext .js,.jsx,.ts,.tsx .",
+    "lint": "eslint --cache .",
     "lint:fix": "npm run lint -- --fix && prettier --write --list-different .",
     "validate": "rm -rf tmp grafana-updownio-datasource.zip && mkdir -p tmp/updown-updownio-datasource && cp dist/*.json dist/*.md dist/LICENSE dist/module.js dist/go_plugin_build_manifest dist/gpx_updown_io_datasource_* tmp/updown-updownio-datasource/ && cp dist/img/logo.svg tmp/updown-updownio-datasource/ && cd tmp && zip -r ../grafana-updownio-datasource.zip updown-updownio-datasource/ -x '*.map' && cd .. && npx @grafana/plugin-validator@latest grafana-updownio-datasource.zip && rm -rf tmp",
     "package": "npm run build:all && rm -rf tmp grafana-updownio-datasource.zip && mkdir -p tmp/updown-updownio-datasource && cp dist/*.json dist/*.md dist/LICENSE dist/module.js dist/go_plugin_build_manifest dist/gpx_updown_io_datasource_* tmp/updown-updownio-datasource/ && if [ -f dist/img/logo.svg ]; then cp dist/img/logo.svg tmp/updown-updownio-datasource/; fi && cd tmp && zip -r ../grafana-updownio-datasource.zip updown-updownio-datasource/ -x '*.map' && cd .. && rm -rf tmp",
@@ -59,12 +59,12 @@
     "@typescript-eslint/parser": "^8.3.0",
     "copy-webpack-plugin": "^11.0.0",
     "css-loader": "^6.7.3",
-    "eslint": "^8.0.0",
+    "eslint": "^9.0.0",
     "eslint-config-prettier": "^8.8.0",
-    "eslint-plugin-jsdoc": "^46.8.0",
-    "eslint-plugin-react": "^7.33.0",
-    "eslint-plugin-react-hooks": "^4.6.0",
-    "eslint-webpack-plugin": "^4.0.1",
+    "eslint-plugin-jsdoc": "^51.2.3",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-webpack-plugin": "^5.0.0",
     "fork-ts-checker-webpack-plugin": "^8.0.0",
     "glob": "^10.2.7",
     "identity-obj-proxy": "3.0.0",
@@ -93,13 +93,13 @@
   "dependencies": {
     "@emotion/css": "11.10.6",
     "@grafana/data": "^12.2.0",
+    "@grafana/i18n": "^12.2.0",
     "@grafana/runtime": "^12.2.0",
     "@grafana/schema": "^12.2.0",
     "@grafana/ui": "^12.2.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "updown.io": "^3.3.5",
-    "@grafana/i18n": "^12.2.0"
+    "updown.io": "^3.3.5"
   },
   "packageManager": "npm@11.4.2"
 }
